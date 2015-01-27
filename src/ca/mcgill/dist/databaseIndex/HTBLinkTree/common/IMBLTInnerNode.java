@@ -4,21 +4,26 @@ import java.util.Arrays;
 import java.util.List;
 
 
-public final class HBLTInnerNode implements HBLTNode{
-    final Object[] keys;
+public final class IMBLTInnerNode implements IMBLTNode{
+    final DeepCopyObject[] keys;
     final long[] child;
+    IMBLTInnerNodeContentWrapper contentWrapper;
 
-    public HBLTInnerNode(Object[] keys, long[] child) {
+    public IMBLTInnerNode(DeepCopyObject[] keys, long[] child) {
         this.keys = keys;
         this.child = child;
+        
+        // create new contentWrapper
     }
 
-    public HBLTInnerNode(Object[] keys, List<Long> child) {
+    public IMBLTInnerNode(DeepCopyObject[] keys, List<Long> child) {
         this.keys = keys;
         this.child = new long[child.size()];
         for(int i=0;i<child.size();i++){
             this.child[i] = child.get(i);
         }
+        
+        //create new contentWrapper
     }
 
 
@@ -45,11 +50,5 @@ public final class HBLTInnerNode implements HBLTNode{
         return "Dir(K"+Arrays.toString(keys)+", C"+Arrays.toString(child)+")";
     }
 
-	@Override
-	// Need to modify this
-	public HBLTNode nextNode() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
+	
 }

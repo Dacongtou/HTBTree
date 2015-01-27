@@ -2,16 +2,19 @@ package ca.mcgill.dist.databaseIndex.HTBLinkTree.common;
 
 import java.util.Arrays;
 
-public final class HBLTLeafNode implements HBLTNode{
-    final Object[] keys;
-    final Object[] vals;
+public final class IMBLTLeafNode implements IMBLTNode{
+    final DeepCopyObject[] keys;
+    final DeepCopyObject[] vals;
     final long next;
+    IMBLTLeafNodeContentWrapper contentWrapper;
 
-    HBLTLeafNode(Object[] keys, Object[] vals, long next) {
+    IMBLTLeafNode(DeepCopyObject[] keys, DeepCopyObject[] vals, long next) {
         this.keys = keys;
         this.vals = vals;
         this.next = next;
         assert(vals==null||keys.length == vals.length+2);
+        
+        // create new contentWrapper
     }
 
     @Override 
@@ -37,10 +40,4 @@ public final class HBLTLeafNode implements HBLTNode{
         return "Leaf(K"+Arrays.toString(keys)+", V"+Arrays.toString(vals)+", L="+next+")";
     }
 
-	@Override
-	// Should be modified later
-	public HBLTNode nextNode() {
-		// TODO Auto-generated method stub
-		return null;
-	}
 }

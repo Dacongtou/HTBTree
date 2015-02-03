@@ -18,5 +18,11 @@ public class IntegerNode implements DeepCopyObject{
 	public String toString() {
 		return ("" + val);
 	}
+	
+	public static void main(String [] args) {
+		
+		System.out.println("this is the first program, say hello world :)");
+		
+	}
 
 }

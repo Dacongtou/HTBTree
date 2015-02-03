@@ -119,6 +119,9 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
 
     /** recid under which reference to rootRecid is stored */
     protected final long rootRecidRef;
+    
+    // added
+    static BNode rootNode;
 
     /** Serializer used to convert keys from/into binary form. */
     protected final BTreeKeySerializer keySerializer;
@@ -217,11 +220,16 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         Object highKey();
         long[] child();
         long next();
+        
+        // added
+        IMBLTNodeContentWrapper getNodeContent();
     }
 
     protected final static class DirNode implements BNode{
         final Object[] keys;
         final long[] child;
+        // added
+        IMBLTInnerNodeContentWrapper nodeContentWrapper;
 
         DirNode(Object[] keys, long[] child) {
             this.keys = keys;
@@ -252,6 +260,14 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
             return "Dir(K"+Arrays.toString(keys)+", C"+Arrays.toString(child)+")";
         }
 
+        
+        //added
+		@Override
+		public IMBLTNodeContentWrapper getNodeContent() {
+			
+			return nodeContentWrapper;
+		}
+
     }
 
 
@@ -259,6 +275,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         final Object[] keys;
         final Object[] vals;
         final long next;
+        IMBLTLeafNodeContentWrapper nodeContentWrapper;
 
         LeafNode(Object[] keys, Object[] vals, long next) {
             this.keys = keys;
@@ -280,6 +297,11 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         @Override public String toString(){
             return "Leaf(K"+Arrays.toString(keys)+", V"+Arrays.toString(vals)+", L="+next+")";
         }
+
+		@Override
+		public IMBLTNodeContentWrapper getNodeContent() {
+			return nodeContentWrapper;
+		}
     }
 
 
@@ -552,6 +574,8 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
     /** creates empty root node and returns recid of its reference*/
     static protected long createRootRef(Engine engine, BTreeKeySerializer keySer, Serializer valueSer, Comparator comparator, int numberOfNodeMetas){
         final LeafNode emptyRoot = new LeafNode(new Object[]{null, null}, new Object[]{}, 0);
+        // added
+        BTreeMap.rootNode = emptyRoot;
         //empty root is serializer simpler way, so we can use dummy values
         long rootRecidVal = engine.put(emptyRoot,  new NodeSerializer(false,keySer, valueSer, comparator, numberOfNodeMetas));
         return engine.put(rootRecidVal,Serializer.LONG);
@@ -661,8 +685,8 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
 
         final long rootRecid = engine.get(rootRecidRef, Serializer.LONG);
         long current = rootRecid;
-
         BNode A = engine.get(current, nodeSerializer);
+        // Proceed until a leaf node is found
         while(!A.isLeaf()){
             long t = current;
             current = nextDir((DirNode) A, v);
@@ -2895,8 +2919,24 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                 BTreeMap.COMPARABLE_COMPARATOR,0,false);
         treeMap.put(1, "justForTest1");
         treeMap.put(2, "justForTest2");
+        treeMap.put(3, "justForTest3");
+        treeMap.put(4, "justForTest4");
+        treeMap.put(5, "justForTest5");
+        treeMap.put(6, "justForTest6");
+        treeMap.put(7, "justForTest7");
+        treeMap.put(8, "justForTest8");
         System.out.println("1: " + (String) treeMap.get(1));
         System.out.println("2: " + (String) treeMap.get(2));
+        System.out.println("3: " + (String) treeMap.get(3));
+        System.out.println("4: " + (String) treeMap.get(4));
+        System.out.println("5: " + (String) treeMap.get(5));
+        System.out.println("6: " + (String) treeMap.get(6));
+        System.out.println("7: " + (String) treeMap.get(7));
+        System.out.println("8: " + (String) treeMap.get(8));
+        
+        final String test = "just for test";
+        System.out.println("test final -> test: " + test);
+        
         
         
     }

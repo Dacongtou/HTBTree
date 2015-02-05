@@ -32,4 +32,16 @@ public class IMBLTInnerNodeContentWrapper implements IMBLTNodeContentWrapper{
         return "Dir(K"+Arrays.toString(keys)+", C"+Arrays.toString(child)+")";
     }
 
+	@Override
+	public IMBLTNodeContentWrapper getNodeContentDeepCopy() {
+		DeepCopyObject[] deepCopyKeys = new DeepCopyObject[keys.length];
+		for(int i = 0; i < keys.length; i++){
+			deepCopyKeys[i] = keys[i].deepCopy();
+		}
+		BNode[] childCopy = new BNode [child.length];
+		System.arraycopy(child, 0, childCopy, 0, child.length);
+		
+		return new IMBLTInnerNodeContentWrapper(deepCopyKeys, childCopy);
+	}
+
 }

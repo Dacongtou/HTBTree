@@ -32,7 +32,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 /**
@@ -223,13 +225,24 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         
         // added
         IMBLTNodeContentWrapper getNodeContent();
+        
+        // added
+        IMBLTNodeContentWrapper getNodeContentDeepCopy();
+        
+        // added
+        void releaseLock();
+        
+        // added
+        void setNodeContentWrapper(IMBLTNodeContentWrapper newRef);
     }
 
     protected final static class DirNode implements BNode{
         final Object[] keys;
         final long[] child;
         // added
-        IMBLTInnerNodeContentWrapper nodeContentWrapper;
+        IMBLTNodeContentWrapper nodeContentWrapper;
+        // added
+        private final ReentrantLock lock = new ReentrantLock();
 
         DirNode(Object[] keys, long[] child) {
             this.keys = keys;
@@ -268,6 +281,23 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
 			return nodeContentWrapper;
 		}
 
+		@Override
+		public IMBLTNodeContentWrapper getNodeContentDeepCopy() {
+			lock.lock();
+			return nodeContentWrapper.getNodeContentDeepCopy();
+		}
+
+		@Override
+		public void releaseLock() {
+			lock.unlock();
+		}
+
+		@Override
+		public void setNodeContentWrapper(IMBLTNodeContentWrapper newRef) {
+			nodeContentWrapper = newRef;
+			
+		}
+
     }
 
 
@@ -275,7 +305,10 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         final Object[] keys;
         final Object[] vals;
         final long next;
-        IMBLTLeafNodeContentWrapper nodeContentWrapper;
+        private final ReentrantLock lock = new ReentrantLock();
+        
+        // added
+        IMBLTNodeContentWrapper nodeContentWrapper;
 
         LeafNode(Object[] keys, Object[] vals, long next) {
             this.keys = keys;
@@ -298,9 +331,27 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
             return "Leaf(K"+Arrays.toString(keys)+", V"+Arrays.toString(vals)+", L="+next+")";
         }
 
+        // added
 		@Override
 		public IMBLTNodeContentWrapper getNodeContent() {
 			return nodeContentWrapper;
+		}
+
+		@Override
+		public IMBLTNodeContentWrapper getNodeContentDeepCopy() {
+			lock.lock();
+			return nodeContentWrapper.getNodeContentDeepCopy();
+		}
+
+		@Override
+		public void releaseLock() {
+			lock.unlock();	
+		}
+
+		@Override
+		public void setNodeContentWrapper(IMBLTNodeContentWrapper newRef) {
+			nodeContentWrapper = newRef;
+			
 		}
     }
 
@@ -679,6 +730,8 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
             long recid = engine.put(value2, valueSerializer);
             value = (V) new ValRef(recid);
         }
+        
+        //System.out.println("Key: " + v + "; value: " + value);
 
         int stackPos = -1;
         long[] stackVals = new long[4];
@@ -696,8 +749,10 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
             }else{
                 //stack push t
                 stackPos++;
-                if(stackVals.length == stackPos) //grow if needed
-                    stackVals = Arrays.copyOf(stackVals, stackVals.length*2);
+                if(stackVals.length == stackPos) {  //grow if needed
+                	stackVals = Arrays.copyOf(stackVals, stackVals.length*2);
+                }
+                // push t
                 stackVals[stackPos] = t;
             }
             A = engine.get(current, nodeSerializer);

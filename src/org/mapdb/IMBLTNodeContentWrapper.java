@@ -15,5 +15,7 @@ public interface IMBLTNodeContentWrapper {
     public BNode[] child();
 
     public BNode next();
+    
+    public IMBLTNodeContentWrapper getNodeContentDeepCopy();
 
 }

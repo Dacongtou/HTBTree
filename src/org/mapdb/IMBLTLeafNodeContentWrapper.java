@@ -33,4 +33,19 @@ public class IMBLTLeafNodeContentWrapper implements IMBLTNodeContentWrapper{
         return "Leaf(K"+Arrays.toString(keys)+", V"+Arrays.toString(vals)+", L="+next+")";
     }
 
+	@Override
+	public IMBLTNodeContentWrapper getNodeContentDeepCopy() {
+		DeepCopyObject[] deepCopyKeys = new DeepCopyObject[keys.length];
+		for(int i = 0; i < keys.length; i++){
+			deepCopyKeys[i] = keys[i].deepCopy();
+		}
+		DeepCopyObject[] deepCopyValues = new DeepCopyObject[vals.length];
+		for(int i = 0; i < keys.length; i++){
+			deepCopyValues[i] = vals[i].deepCopy();
+		}
+		
+		BNode nextCopy = next;
+		return new IMBLTLeafNodeContentWrapper(deepCopyKeys, deepCopyValues, nextCopy);
+	}
+
 }

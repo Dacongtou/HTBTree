@@ -779,6 +779,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                         if(CC.PARANOID) assertNoLocks(nodeLocks);
                         return valExpand(oldVal);
                     }
+                    // case 1: key exists, need to update the value
                     //insert new
                     Object[] vals = Arrays.copyOf(A.vals(), A.vals().length);
                     vals[pos-1] = value;
@@ -815,6 +816,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
 
             }while(!found);
 
+            // case 2: key doesn't exist, need to add key as well as value
             // can be new item inserted into A without splitting it?
             if(A.keys().length - (A.isLeaf()?2:1)<maxNodeSize){
                 int pos = findChildren(v, A.keys());

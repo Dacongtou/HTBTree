@@ -819,6 +819,8 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
             // case 2: key doesn't exist, need to add key as well as value
             // can be new item inserted into A without splitting it?
             if(A.keys().length - (A.isLeaf()?2:1)<maxNodeSize){
+            	// case 2.1: node is safe => no need to split
+            	// all the locks can be released here
                 int pos = findChildren(v, A.keys());
                 Object[] keys = arrayPut(A.keys(), pos, v);
 
@@ -840,7 +842,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                 if(CC.PARANOID) assertNoLocks(nodeLocks);
                 return null;
             }else{
-                //node is not safe, it requires splitting
+                //case 2.2: node is not safe, it requires splitting
                 final int pos = findChildren(v, A.keys());
                 final Object[] keys = arrayPut(A.keys(), pos, v);
                 final Object[] vals = (A.isLeaf())? arrayPut(A.vals(), pos-1, value) : null;
@@ -2966,6 +2968,252 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         }
     }
     
+    
+    
+    
+    public V put3(K key, V value){
+        if(key==null||value==null) throw new NullPointerException();
+        return put2(key,value, false);
+    }
+
+    protected V put4(final K key, final V value2, final boolean putOnlyIfAbsent){
+        K v = key;
+        if(v == null) throw new IllegalArgumentException("null key");
+        if(value2 == null) throw new IllegalArgumentException("null value");
+
+        V value = value2;
+        if(valsOutsideNodes){
+            long recid = engine.put(value2, valueSerializer);
+            value = (V) new ValRef(recid);
+        }
+        
+        //System.out.println("Key: " + v + "; value: " + value);
+
+        int stackPos = -1;
+        long[] stackVals = new long[4];
+
+        final long rootRecid = engine.get(rootRecidRef, Serializer.LONG);
+        long current = rootRecid;
+        BNode A = engine.get(current, nodeSerializer);
+        // Proceed until a leaf node is found
+        while(!A.isLeaf()){
+            long t = current;
+            current = nextDir((DirNode) A, v);
+            assert(current>0) : A;
+            if(current == A.child()[A.child().length-1]){
+                //is link, do nothing
+            }else{
+                //stack push t
+                stackPos++;
+                if(stackVals.length == stackPos) {  //grow if needed
+                	stackVals = Arrays.copyOf(stackVals, stackVals.length*2);
+                }
+                // push t
+                stackVals[stackPos] = t;
+            }
+            A = engine.get(current, nodeSerializer);
+        }
+        int level = 1;
+
+        long p=0;
+        try{
+        while(true){
+            boolean found;
+            do{
+                lock(nodeLocks, current);
+                found = true;
+                A = engine.get(current, nodeSerializer);
+                int pos = findChildren(v, A.keys());
+                //check if keys is already in tree
+                if(pos<A.keys().length-1 &&  v!=null && A.keys()[pos]!=null &&
+                        0==comparator.compare(v,A.keys()[pos])){
+                    //yes key is already in tree
+                    Object oldVal = A.vals()[pos-1];
+                    if(putOnlyIfAbsent){
+                        //is not absent, so quit
+                        unlock(nodeLocks, current);
+                        if(CC.PARANOID) assertNoLocks(nodeLocks);
+                        return valExpand(oldVal);
+                    }
+                    // case 1: key exists, need to update the value
+                    //insert new
+                    Object[] vals = Arrays.copyOf(A.vals(), A.vals().length);
+                    vals[pos-1] = value;
+
+                    A = new LeafNode(Arrays.copyOf(A.keys(), A.keys().length), vals, ((LeafNode)A).next);
+                    assert(nodeLocks.get(current)==Thread.currentThread());
+                    engine.update(current, A, nodeSerializer);
+                    //already in here
+                    V ret =  valExpand(oldVal);
+                    notify(key,ret, value2);
+                    unlock(nodeLocks, current);
+                    if(CC.PARANOID) assertNoLocks(nodeLocks);
+                    return ret;
+                }
+
+                //if v > highvalue(a)
+                if(A.highKey() != null && comparator.compare(v, A.highKey())>0){
+                    //follow link until necessary
+                    unlock(nodeLocks, current);
+                    found = false;
+                    int pos2 = findChildren(v, A.keys());
+                    while(A!=null && pos2 == A.keys().length){
+                        //TODO lock?
+                        long next = A.next();
+
+                        if(next==0) break;
+                        current = next;
+                        A = engine.get(current, nodeSerializer);
+                        pos2 = findChildren(v, A.keys());
+                    }
+
+                }
+
+
+            }while(!found);
+
+            // case 2: key doesn't exist, need to add key as well as value
+            // can be new item inserted into A without splitting it?
+            if(A.keys().length - (A.isLeaf()?2:1)<maxNodeSize){
+            	// case 2.1: node is safe => no need to split
+            	// all the locks can be released here
+                int pos = findChildren(v, A.keys());
+                Object[] keys = arrayPut(A.keys(), pos, v);
+
+                if(A.isLeaf()){
+                    Object[] vals = arrayPut(A.vals(), pos-1, value);
+                    LeafNode n = new LeafNode(keys, vals, ((LeafNode)A).next);
+                    assert(nodeLocks.get(current)==Thread.currentThread());
+                    engine.update(current, n, nodeSerializer);
+                }else{
+                    assert(p!=0);
+                    long[] child = arrayLongPut(A.child(), pos, p);
+                    DirNode d = new DirNode(keys, child);
+                    assert(nodeLocks.get(current)==Thread.currentThread());
+                    engine.update(current, d, nodeSerializer);
+                }
+
+                notify(key,  null, value2);
+                unlock(nodeLocks, current);
+                if(CC.PARANOID) assertNoLocks(nodeLocks);
+                return null;
+            }else{
+                //case 2.2: node is not safe, it requires splitting
+                final int pos = findChildren(v, A.keys());
+                final Object[] keys = arrayPut(A.keys(), pos, v);
+                final Object[] vals = (A.isLeaf())? arrayPut(A.vals(), pos-1, value) : null;
+                final long[] child = A.isLeaf()? null : arrayLongPut(A.child(), pos, p);
+                final int splitPos = keys.length/2;
+                BNode B;
+                if(A.isLeaf()){
+                    Object[] vals2 = Arrays.copyOfRange(vals, splitPos, vals.length);
+
+                    B = new LeafNode(
+                                Arrays.copyOfRange(keys, splitPos, keys.length),
+                                vals2,
+                                ((LeafNode)A).next);
+                }else{
+                    B = new DirNode(Arrays.copyOfRange(keys, splitPos, keys.length),
+                                Arrays.copyOfRange(child, splitPos, keys.length));
+                }
+                long q = engine.put(B, nodeSerializer);
+                if(A.isLeaf()){  //  splitPos+1 is there so A gets new high  value (key)
+                    Object[] keys2 = Arrays.copyOf(keys, splitPos+2);
+                    keys2[keys2.length-1] = keys2[keys2.length-2];
+                    Object[] vals2 = Arrays.copyOf(vals, splitPos);
+
+                    //TODO check high/low keys overlap
+                    A = new LeafNode(keys2, vals2, q);
+                }else{
+                    long[] child2 = Arrays.copyOf(child, splitPos+1);
+                    child2[splitPos] = q;
+                    A = new DirNode(Arrays.copyOf(keys, splitPos+1), child2);
+                }
+                assert(nodeLocks.get(current)==Thread.currentThread());
+                engine.update(current, A, nodeSerializer);
+
+                if((current != rootRecid)){ //is not root
+                    unlock(nodeLocks, current);
+                    p = q;
+                    v = (K) A.highKey();
+                    level = level+1;
+                    if(stackPos!=-1){ //if stack is not empty
+                        current = stackVals[stackPos--];
+                    }else{
+                        //current := the left most node at level
+                        current = leftEdges.get(level-1);
+                      }
+                    assert(current>0);
+                }else{
+                    BNode R = new DirNode(
+                            new Object[]{A.keys()[0], A.highKey(), B.isLeaf()?null:B.highKey()},
+                            new long[]{current,q, 0});
+
+                    lock(nodeLocks, rootRecidRef);
+                    unlock(nodeLocks, current);
+                    long newRootRecid = engine.put(R, nodeSerializer);
+
+                    assert(nodeLocks.get(rootRecidRef)==Thread.currentThread());
+                    engine.update(rootRecidRef, newRootRecid, Serializer.LONG);
+                    //add newRootRecid into leftEdges
+                    leftEdges.add(newRootRecid);
+
+                    notify(key, null, value2);
+                    unlock(nodeLocks, rootRecidRef);
+                    if(CC.PARANOID) assertNoLocks(nodeLocks);
+                    return null;
+                }
+            }
+        }
+        }catch(RuntimeException e){
+            unlockAll(nodeLocks);
+            throw e;
+        }catch(Exception e){
+            unlockAll(nodeLocks);
+            throw new RuntimeException(e);
+        }
+    }
+    
+    
+    public V get2(Object key){
+    	return (V) get(key, true);
+    }
+
+    protected Object get2(Object key, boolean expandValue) {
+        if(key==null) throw new NullPointerException();
+        K v = (K) key;
+        long current = engine.get(rootRecidRef, Serializer.LONG); //get root
+
+        BNode A = engine.get(current, nodeSerializer);
+
+        //dive until  leaf
+        while(!A.isLeaf()){
+            current = nextDir((DirNode) A, v);
+            A = engine.get(current, nodeSerializer);
+        }
+
+        //now at leaf level
+        LeafNode leaf = (LeafNode) A;
+        int pos = findChildren(v, leaf.keys);
+        while(pos == leaf.keys.length){
+            //follow next link on leaf until necessary
+            leaf = (LeafNode) engine.get(leaf.next, nodeSerializer);
+            pos = findChildren(v, leaf.keys);
+        }
+
+        if(pos==leaf.keys.length-1){
+            return null; //last key is always deleted
+        }
+        //finish search
+        if(leaf.keys[pos]!=null && 0==comparator.compare(v,leaf.keys[pos])){
+            Object ret = leaf.vals[pos-1];
+            return expandValue ? valExpand(ret) : ret;
+        }else
+            return null;
+    }
+    
+    
+    
     public static void main(String [] args) {
     	
     	System.out.println("Test for BTreeMap.....");
@@ -2990,6 +3238,8 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         System.out.println("6: " + (String) treeMap.get(6));
         System.out.println("7: " + (String) treeMap.get(7));
         System.out.println("8: " + (String) treeMap.get(8));
+        
+        
         
         final String test = "just for test";
         System.out.println("test final -> test: " + test);

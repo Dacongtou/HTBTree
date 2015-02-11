@@ -9,6 +9,8 @@ public class IMBLTLeafNodeContentWrapper implements IMBLTNodeContentWrapper{
 	DeepCopyObject [] keys;
 	DeepCopyObject [] vals;
 	BNode next;
+	// 
+	boolean flag;
 
 	public IMBLTLeafNodeContentWrapper(DeepCopyObject[] keys, DeepCopyObject[] vals,
 			BNode next) {

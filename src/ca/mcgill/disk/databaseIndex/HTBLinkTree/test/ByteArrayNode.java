@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 import org.mapdb.DeepCopyObject;
 
-public class ByteArrayNode implements DeepCopyObject{
+public class ByteArrayNode extends DeepCopyObject {
 
 	byte [] val;
 	
@@ -22,6 +22,12 @@ public class ByteArrayNode implements DeepCopyObject{
 		return Arrays.toString(val);
 	}
 	
+	@Override
+	public int compareObject(DeepCopyObject object) {
+		// because there is currently no java native byte array comparator
+		return 0;
+	}
+	
 	public static void main(String [] args) {
 		
 		System.out.println("test ByteArrayNode...");
@@ -36,5 +42,9 @@ public class ByteArrayNode implements DeepCopyObject{
 		System.out.println("ByteArrayNode test finished...");
 		
 	}
-
+	
+	
+	
+	
+	
 }

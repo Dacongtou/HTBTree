@@ -2971,21 +2971,21 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
     
     
     
-    public V put3(K key, V value){
+    public V put3(DeepCopyObject key, DeepCopyObject value){
         if(key==null||value==null) throw new NullPointerException();
-        return put2(key,value, false);
+        return put4(key,value, false);
     }
 
-    protected V put4(final K key, final V value2, final boolean putOnlyIfAbsent){
-        K v = key;
+    protected V put4(DeepCopyObject key, DeepCopyObject value2, final boolean putOnlyIfAbsent){
+        DeepCopyObject v = key;
         if(v == null) throw new IllegalArgumentException("null key");
         if(value2 == null) throw new IllegalArgumentException("null value");
 
-        V value = value2;
-        if(valsOutsideNodes){
-            long recid = engine.put(value2, valueSerializer);
-            value = (V) new ValRef(recid);
-        }
+        DeepCopyObject value = value2;
+//        if(valsOutsideNodes){
+//            long recid = engine.put(value2, valueSerializer);
+//            value = (DeepCopyObject) new ValRef(recid);
+//        }
         
         //System.out.println("Key: " + v + "; value: " + value);
 
@@ -3045,7 +3045,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                     engine.update(current, A, nodeSerializer);
                     //already in here
                     V ret =  valExpand(oldVal);
-                    notify(key,ret, value2);
+                    //notify(key,ret, value2);
                     unlock(nodeLocks, current);
                     if(CC.PARANOID) assertNoLocks(nodeLocks);
                     return ret;
@@ -3093,7 +3093,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                     engine.update(current, d, nodeSerializer);
                 }
 
-                notify(key,  null, value2);
+                //notify(key,  null, value2);
                 unlock(nodeLocks, current);
                 if(CC.PARANOID) assertNoLocks(nodeLocks);
                 return null;
@@ -3135,7 +3135,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                 if((current != rootRecid)){ //is not root
                     unlock(nodeLocks, current);
                     p = q;
-                    v = (K) A.highKey();
+                    v = (DeepCopyObject) A.highKey();
                     level = level+1;
                     if(stackPos!=-1){ //if stack is not empty
                         current = stackVals[stackPos--];
@@ -3158,7 +3158,7 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
                     //add newRootRecid into leftEdges
                     leftEdges.add(newRootRecid);
 
-                    notify(key, null, value2);
+                    //notify(key, null, value2);
                     unlock(nodeLocks, rootRecidRef);
                     if(CC.PARANOID) assertNoLocks(nodeLocks);
                     return null;
@@ -3175,13 +3175,13 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
     }
     
     
-    public V get2(Object key){
-    	return (V) get(key, true);
+    public DeepCopyObject get2(DeepCopyObject key){
+    	return (DeepCopyObject) get(key, true);
     }
 
-    protected Object get2(Object key, boolean expandValue) {
+    protected DeepCopyObject get2(DeepCopyObject key, boolean expandValue) {
         if(key==null) throw new NullPointerException();
-        K v = (K) key;
+        DeepCopyObject v = (DeepCopyObject) key;
         long current = engine.get(rootRecidRef, Serializer.LONG); //get root
 
         BNode A = engine.get(current, nodeSerializer);
@@ -3207,9 +3207,85 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         //finish search
         if(leaf.keys[pos]!=null && 0==comparator.compare(v,leaf.keys[pos])){
             Object ret = leaf.vals[pos-1];
-            return expandValue ? valExpand(ret) : ret;
+            //return expandValue ? valExpand(ret) : ret;
+            return ((DeepCopyObject) ret);
         }else
             return null;
+    }
+    
+    
+	public V remove3(Object key) {
+        return remove4(key, null);
+    }
+
+    private V remove4(final Object key, final Object value) {
+        long current = engine.get(rootRecidRef, Serializer.LONG);
+
+        BNode A = engine.get(current, nodeSerializer);
+        while(!A.isLeaf()){
+            current = nextDir((DirNode) A, key);
+            A = engine.get(current, nodeSerializer);
+        }
+
+        try{
+        while(true){
+
+            lock(nodeLocks, current);
+            A = engine.get(current, nodeSerializer);
+            int pos = findChildren(key, A.keys());
+            if(pos<A.keys().length&& key!=null && A.keys()[pos]!=null &&
+                    0==comparator.compare(key,A.keys()[pos])){
+                //check for last node which was already deleted
+                if(pos == A.keys().length-1 && value == null){
+                    unlock(nodeLocks, current);
+                    return null;
+                }
+
+                //delete from node
+                Object oldVal =   A.vals()[pos-1];
+                oldVal = valExpand(oldVal);
+                if(value!=null && !value.equals(oldVal)){
+                    unlock(nodeLocks, current);
+                    return null;
+                }
+
+                Object[] keys2 = new Object[A.keys().length-1];
+                System.arraycopy(A.keys(),0,keys2, 0, pos);
+                System.arraycopy(A.keys(), pos+1, keys2, pos, keys2.length-pos);
+
+                Object[] vals2 = new Object[A.vals().length-1];
+                System.arraycopy(A.vals(),0,vals2, 0, pos-1);
+                System.arraycopy(A.vals(), pos, vals2, pos-1, vals2.length-(pos-1));
+
+
+                A = new LeafNode(keys2, vals2, ((LeafNode)A).next);
+                assert(nodeLocks.get(current)==Thread.currentThread());
+                engine.update(current, A, nodeSerializer);
+                notify((K)key, (V)oldVal, null);
+                unlock(nodeLocks, current);
+                return (V) oldVal;
+            }else{
+                unlock(nodeLocks, current);
+                //follow link until necessary
+                if(A.highKey() != null && comparator.compare(key, A.highKey())>0){
+                    int pos2 = findChildren(key, A.keys());
+                    while(pos2 == A.keys().length){
+                        //TODO lock?
+                        current = ((LeafNode)A).next;
+                        A = engine.get(current, nodeSerializer);
+                    }
+                }else{
+                    return null;
+                }
+            }
+        }
+        }catch(RuntimeException e){
+            unlockAll(nodeLocks);
+            throw e;
+        }catch(Exception e){
+            unlockAll(nodeLocks);
+            throw new RuntimeException(e);
+        }
     }
     
     

@@ -36,6 +36,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
+import ca.mcgill.disk.databaseIndex.HTBLinkTree.test.IntegerNode;
+import ca.mcgill.disk.databaseIndex.HTBLinkTree.test.StringNode;
+
 
 /**
  * A scalable concurrent {@link ConcurrentNavigableMap} implementation.
@@ -708,6 +711,12 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
     }
 
     protected long nextDir(DirNode d, Object key) {
+        int pos = findChildren(key, d.keys) - 1;
+        if(pos<0) pos = 0;
+        return d.child[pos];
+    }
+    
+    protected BNode nextDir2(IMBLTInnerNodeContentWrapper d, DeepCopyObject key) {
         int pos = findChildren(key, d.keys) - 1;
         if(pos<0) pos = 0;
         return d.child[pos];
@@ -2977,7 +2986,10 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
     }
 
     protected V put4(DeepCopyObject key, DeepCopyObject value2, final boolean putOnlyIfAbsent){
-        DeepCopyObject v = key;
+        
+    	System.out.println("key: " + key.toString() + "; value: " +  value2.toString());
+    	
+    	DeepCopyObject v = key;
         if(v == null) throw new IllegalArgumentException("null key");
         if(value2 == null) throw new IllegalArgumentException("null value");
 
@@ -2990,28 +3002,29 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         //System.out.println("Key: " + v + "; value: " + value);
 
         int stackPos = -1;
-        long[] stackVals = new long[4];
+        BNode[] stackVals = new BNode[4];
 
-        final long rootRecid = engine.get(rootRecidRef, Serializer.LONG);
-        long current = rootRecid;
-        BNode A = engine.get(current, nodeSerializer);
+        BNode current = rootNode;
+        IMBLTNodeContentWrapper A = current.getNodeContent();
         // Proceed until a leaf node is found
         while(!A.isLeaf()){
-            long t = current;
-            current = nextDir((DirNode) A, v);
-            assert(current>0) : A;
+            BNode t = current;
+            current = nextDir2((IMBLTInnerNodeContentWrapper) A, v);
             if(current == A.child()[A.child().length-1]){
                 //is link, do nothing
             }else{
                 //stack push t
                 stackPos++;
                 if(stackVals.length == stackPos) {  //grow if needed
+                	// Arrays.copyOf just copy the reference
+                	// because we just need the copy of reference of BNode
+                	// then we don't need to implement deepcopy method
                 	stackVals = Arrays.copyOf(stackVals, stackVals.length*2);
                 }
                 // push t
                 stackVals[stackPos] = t;
             }
-            A = engine.get(current, nodeSerializer);
+            A = current.getNodeContent();
         }
         int level = 1;
 
@@ -3298,28 +3311,58 @@ public class BTreeMap<K,V> extends AbstractMap<K,V>
         BTreeMap treeMap = new BTreeMap(engine,BTreeMap.createRootRef(engine,BTreeKeySerializer.BASIC,Serializer.BASIC,BTreeMap.COMPARABLE_COMPARATOR,0),
                 6,false,0, BTreeKeySerializer.BASIC,Serializer.BASIC,
                 BTreeMap.COMPARABLE_COMPARATOR,0,false);
-        treeMap.put(1, "justForTest1");
-        treeMap.put(2, "justForTest2");
-        treeMap.put(3, "justForTest3");
-        treeMap.put(4, "justForTest4");
-        treeMap.put(5, "justForTest5");
-        treeMap.put(6, "justForTest6");
-        treeMap.put(7, "justForTest7");
-        treeMap.put(8, "justForTest8");
-        System.out.println("1: " + (String) treeMap.get(1));
-        System.out.println("2: " + (String) treeMap.get(2));
-        System.out.println("3: " + (String) treeMap.get(3));
-        System.out.println("4: " + (String) treeMap.get(4));
-        System.out.println("5: " + (String) treeMap.get(5));
-        System.out.println("6: " + (String) treeMap.get(6));
-        System.out.println("7: " + (String) treeMap.get(7));
-        System.out.println("8: " + (String) treeMap.get(8));
+//        treeMap.put(1, "justForTest1");
+//        treeMap.put(2, "justForTest2");
+//        treeMap.put(3, "justForTest3");
+//        treeMap.put(4, "justForTest4");
+//        treeMap.put(5, "justForTest5");
+//        treeMap.put(6, "justForTest6");
+//        treeMap.put(7, "justForTest7");
+//        treeMap.put(8, "justForTest8");
+//        System.out.println("1: " + (String) treeMap.get(1));
+//        System.out.println("2: " + (String) treeMap.get(2));
+//        System.out.println("3: " + (String) treeMap.get(3));
+//        System.out.println("4: " + (String) treeMap.get(4));
+//        System.out.println("5: " + (String) treeMap.get(5));
+//        System.out.println("6: " + (String) treeMap.get(6));
+//        System.out.println("7: " + (String) treeMap.get(7));
+//        System.out.println("8: " + (String) treeMap.get(8));
         
+        IntegerNode keyNode1 = new IntegerNode(1);
+        IntegerNode keyNode2 = new IntegerNode(2);
+        IntegerNode keyNode3 = new IntegerNode(3);
+        IntegerNode keyNode4 = new IntegerNode(4);
+        IntegerNode keyNode5 = new IntegerNode(5);
+        IntegerNode keyNode6 = new IntegerNode(6);
+        IntegerNode keyNode7 = new IntegerNode(7);
+        IntegerNode keyNode8 = new IntegerNode(8);
         
+        StringNode valueNode1 = new StringNode("1");
+        StringNode valueNode2 = new StringNode("2");
+        StringNode valueNode3 = new StringNode("3");
+        StringNode valueNode4 = new StringNode("4");
+        StringNode valueNode5 = new StringNode("5");
+        StringNode valueNode6 = new StringNode("6");
+        StringNode valueNode7 = new StringNode("7");
+        StringNode valueNode8 = new StringNode("8");
         
-        final String test = "just for test";
-        System.out.println("test final -> test: " + test);
+        treeMap.put3(keyNode1,valueNode1);
+        treeMap.put3(keyNode2,valueNode2);
+        treeMap.put3(keyNode3,valueNode3);
+        treeMap.put3(keyNode4,valueNode4);
+        treeMap.put3(keyNode5,valueNode5);
+        treeMap.put3(keyNode6,valueNode6);
+        treeMap.put3(keyNode7,valueNode7);
+        treeMap.put3(keyNode8,valueNode8);
         
+        System.out.println(treeMap.get2(new IntegerNode(1)));
+        System.out.println(treeMap.get2(new IntegerNode(2)));
+        System.out.println(treeMap.get2(new IntegerNode(3)));
+        System.out.println(treeMap.get2(new IntegerNode(4)));
+        System.out.println(treeMap.get2(new IntegerNode(5)));
+        System.out.println(treeMap.get2(new IntegerNode(6)));
+        System.out.println(treeMap.get2(new IntegerNode(7)));
+        System.out.println(treeMap.get2(new IntegerNode(8)));
         
         
     }

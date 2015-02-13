@@ -1,10 +1,12 @@
 package org.mapdb;
 
+import java.io.Serializable;
+
 import ca.mcgill.disk.databaseIndex.HTBLinkTree.test.IntegerNode;
 
 
 
-public abstract class DeepCopyObject implements Comparable<DeepCopyObject>{
+public abstract class DeepCopyObject implements Comparable<DeepCopyObject>, Serializable{
 	
 	public abstract DeepCopyObject deepCopy();
 	

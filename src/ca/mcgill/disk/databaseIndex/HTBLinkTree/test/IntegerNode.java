@@ -4,6 +4,8 @@ import org.mapdb.DeepCopyObject;
 
 public class IntegerNode extends DeepCopyObject {
 
+	
+	private static final long serialVersionUID = 6297832182854562611L;
 	int val;
 	
 	public IntegerNode (int val) {

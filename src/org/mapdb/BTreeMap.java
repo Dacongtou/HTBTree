@@ -3471,22 +3471,28 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		if (key == null)
 			throw new NullPointerException();
 		DeepCopyObject v = (DeepCopyObject) key;
-		long current = engine.get(rootRecidRef, Serializer.LONG); // get root
+		//long current = engine.get(rootRecidRef, Serializer.LONG); // get root
 
-		BNode A = engine.get(current, nodeSerializer);
+		//BNode A = engine.get(current, nodeSerializer);
+		
+		BNode current = rootNode;
+		IMBLTNodeContentWrapper A = current.getNodeContent();
 
 		// dive until leaf
 		while (!A.isLeaf()) {
-			current = nextDir((DirNode) A, v);
-			A = engine.get(current, nodeSerializer);
+			current = nextDir2((IMBLTInnerNodeContentWrapper) A, v);
+			A = current.getNodeContent();
+			//A = engine.get(current, nodeSerializer);
 		}
 
 		// now at leaf level
-		LeafNode leaf = (LeafNode) A;
+		//LeafNode leaf = (LeafNode) A;
+		IMBLTLeafNodeContentWrapper leaf = (IMBLTLeafNodeContentWrapper) A;
 		int pos = findChildren(v, leaf.keys);
 		while (pos == leaf.keys.length) {
 			// follow next link on leaf until necessary
-			leaf = (LeafNode) engine.get(leaf.next, nodeSerializer);
+			//leaf = (LeafNode) engine.get(leaf.next, nodeSerializer);
+			leaf = (IMBLTLeafNodeContentWrapper) leaf.next().getNodeContent();
 			pos = findChildren(v, leaf.keys);
 		}
 
@@ -3494,6 +3500,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			return null; // last key is always deleted
 		}
 		// finish search
+		// should compare the value as well
 		if (leaf.keys[pos] != null
 				&& 0 == comparator.compare(v, leaf.keys[pos])) {
 			Object ret = leaf.vals[pos - 1];
@@ -3503,68 +3510,86 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			return null;
 	}
 
-	public V remove3(Object key) {
+	public V remove3(DeepCopyObject key) {
 		return remove4(key, null);
 	}
 
-	private V remove4(final Object key, final Object value) {
-		long current = engine.get(rootRecidRef, Serializer.LONG);
+	private V remove4(final DeepCopyObject key, final DeepCopyObject value) {
+		//long current = engine.get(rootRecidRef, Serializer.LONG);
 
-		BNode A = engine.get(current, nodeSerializer);
+		//BNode A = engine.get(current, nodeSerializer);
+		
+		BNode current = rootNode;
+		IMBLTNodeContentWrapper A = current.getNodeContent();
 		while (!A.isLeaf()) {
-			current = nextDir((DirNode) A, key);
-			A = engine.get(current, nodeSerializer);
+			current = nextDir2((IMBLTInnerNodeContentWrapper) A, key);
+			//A = engine.get(current, nodeSerializer);
+			A = current.getNodeContent();
 		}
 
 		try {
 			while (true) {
 
-				lock(nodeLocks, current);
-				A = engine.get(current, nodeSerializer);
+				//lock(nodeLocks, current);
+				//A = engine.get(current, nodeSerializer);
+				// lock the node and get the deep copy of the node
+				A = current.getNodeContentDeepCopy();
 				int pos = findChildren(key, A.keys());
 				if (pos < A.keys().length && key != null
 						&& A.keys()[pos] != null
 						&& 0 == comparator.compare(key, A.keys()[pos])) {
 					// check for last node which was already deleted
 					if (pos == A.keys().length - 1 && value == null) {
-						unlock(nodeLocks, current);
+						//unlock(nodeLocks, current);
+						current.releaseLock();
 						return null;
 					}
 
 					// delete from node
 					Object oldVal = A.vals()[pos - 1];
-					oldVal = valExpand(oldVal);
+					//oldVal = valExpand(oldVal);
+					// If the value is not equal, return null
 					if (value != null && !value.equals(oldVal)) {
-						unlock(nodeLocks, current);
+						//unlock(nodeLocks, current);
+						current.releaseLock();
 						return null;
 					}
 
 					Object[] keys2 = new Object[A.keys().length - 1];
+					// Copy the new keys
 					System.arraycopy(A.keys(), 0, keys2, 0, pos);
 					System.arraycopy(A.keys(), pos + 1, keys2, pos,
 							keys2.length - pos);
 
 					Object[] vals2 = new Object[A.vals().length - 1];
+					// Copy the new values
 					System.arraycopy(A.vals(), 0, vals2, 0, pos - 1);
 					System.arraycopy(A.vals(), pos, vals2, pos - 1,
 							vals2.length - (pos - 1));
 
-					A = new LeafNode(keys2, vals2, ((LeafNode) A).next);
-					assert (nodeLocks.get(current) == Thread.currentThread());
-					engine.update(current, A, nodeSerializer);
-					notify((K) key, (V) oldVal, null);
-					unlock(nodeLocks, current);
+					//A = new LeafNode(keys2, vals2, ((LeafNode) A).next);
+					A = new IMBLTLeafNodeContentWrapper((DeepCopyObject[]) keys2, (DeepCopyObject []) vals2, A.next());
+					//assert (nodeLocks.get(current) == Thread.currentThread());
+					//engine.update(current, A, nodeSerializer);
+					current.setNodeContentWrapper(A);
+					//notify((K) key, (V) oldVal, null);
+					//unlock(nodeLocks, current);
+					current.releaseLock();
 					return (V) oldVal;
 				} else {
-					unlock(nodeLocks, current);
+					//unlock(nodeLocks, current);
+					current.releaseLock();
 					// follow link until necessary
 					if (A.highKey() != null
 							&& comparator.compare(key, A.highKey()) > 0) {
 						int pos2 = findChildren(key, A.keys());
 						while (pos2 == A.keys().length) {
 							// TODO lock?
-							current = ((LeafNode) A).next;
-							A = engine.get(current, nodeSerializer);
+							//current = ((LeafNode) A).next;
+							//A = engine.get(current, nodeSerializer);
+							current = A.next();
+							A = current.getNodeContent();
+							
 						}
 					} else {
 						return null;

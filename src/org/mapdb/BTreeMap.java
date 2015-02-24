@@ -3532,11 +3532,11 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			return null;
 	}
 
-	public V remove3(DeepCopyObject key) {
+	public DeepCopyObject remove3(DeepCopyObject key) {
 		return remove4(key, null);
 	}
 
-	private V remove4(final DeepCopyObject key, final DeepCopyObject value) {
+	private DeepCopyObject remove4(final DeepCopyObject key, final DeepCopyObject value) {
 		//long current = engine.get(rootRecidRef, Serializer.LONG);
 
 		//BNode A = engine.get(current, nodeSerializer);
@@ -3568,22 +3568,23 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 					}
 
 					// delete from node
-					Object oldVal = A.vals()[pos - 1];
+					DeepCopyObject oldVal = A.vals()[pos - 1];
 					//oldVal = valExpand(oldVal);
 					// If the value is not equal, return null
-					if (value != null && !value.equals(oldVal)) {
+					//if (value != null && !value.equals(oldVal)) {
+					if (value != null && comparator.compare(value, oldVal) != 0) {
 						//unlock(nodeLocks, current);
 						current.releaseLock();
 						return null;
 					}
 
-					Object[] keys2 = new Object[A.keys().length - 1];
+					DeepCopyObject [] keys2 = new DeepCopyObject[A.keys().length - 1];
 					// Copy the new keys
 					System.arraycopy(A.keys(), 0, keys2, 0, pos);
 					System.arraycopy(A.keys(), pos + 1, keys2, pos,
 							keys2.length - pos);
 
-					Object[] vals2 = new Object[A.vals().length - 1];
+					DeepCopyObject[] vals2 = new DeepCopyObject[A.vals().length - 1];
 					// Copy the new values
 					System.arraycopy(A.vals(), 0, vals2, 0, pos - 1);
 					System.arraycopy(A.vals(), pos, vals2, pos - 1,
@@ -3597,7 +3598,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 					//notify((K) key, (V) oldVal, null);
 					//unlock(nodeLocks, current);
 					current.releaseLock();
-					return (V) oldVal;
+					return (DeepCopyObject) oldVal;
 				} else {
 					//unlock(nodeLocks, current);
 					current.releaseLock();
@@ -3673,6 +3674,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		StringNode valueNode7 = new StringNode("7");
 		StringNode valueNode8 = new StringNode("8");
 
+		// put3, remove4, get2
 		treeMap.put3(keyNode1, valueNode1);
 		treeMap.put3(keyNode2, valueNode2);
 		treeMap.put3(keyNode3, valueNode3);
@@ -3691,7 +3693,11 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		System.out.println(treeMap.get2(new IntegerNode(7)));
 		System.out.println(treeMap.get2(new IntegerNode(8)));
 		
-		// put3, remove3, get2
+		System.out.println("removig......");
+		System.out.println(treeMap.remove4(new IntegerNode(1), new StringNode("1")));
+		System.out.println(treeMap.get2(new IntegerNode(1)));
+		
+		
 		
 		
 

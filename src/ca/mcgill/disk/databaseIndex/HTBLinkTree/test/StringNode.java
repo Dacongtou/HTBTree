@@ -28,6 +28,7 @@ public class StringNode extends DeepCopyObject {
 		return this.val.compareTo(((StringNode) object).val);
 	}
 	
+	
 	public static void main(String [] args) {
 		
 		StringNode node1 = new StringNode("5");

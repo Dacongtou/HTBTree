@@ -3552,6 +3552,47 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		
 	}
 	
+	// return the BNode currently copied
+	public BNode getLowerNodeSublist(DeepCopyObject lowerBound, boolean isInclusiveLower, List<DeepCopyObject> list) {
+		BNode current = rootNode;
+		IMBLTNodeContentWrapper A = current.getNodeContent();
+		
+		while(!A.isLeaf()) {
+			current = nextDir2((IMBLTInnerNodeContentWrapper) A, lowerBound);
+			A = current.getNodeContent();
+		}
+		
+		IMBLTLeafNodeContentWrapper leaf = (IMBLTLeafNodeContentWrapper) A;
+		int pos = findChildren(lowerBound, leaf.keys);
+		while (pos == leaf.keys.length) {
+			// follow next link on leaf until necessary
+			leaf = (IMBLTLeafNodeContentWrapper) leaf.next().getNodeContent();
+			pos = findChildren(lowerBound, leaf.keys);
+		}
+		
+		if (pos == leaf.keys.length - 1) {
+			// no need to add values to the list
+			return current; // last key is always deleted
+		}
+		
+		if (comparator.compare(lowerBound, leaf.keys[pos]) == 0) {
+			if(isInclusiveLower) {
+				list.addAll(Arrays.asList(Arrays.copyOfRange(A.vals(), pos - 1, A.vals().length)));
+			} else {
+				list.addAll(Arrays.asList(Arrays.copyOfRange(A.vals(), pos, A.vals().length)));
+			}
+		} else {
+			if (comparator.compare(lowerBound, leaf.keys[pos]) < 0) {
+				list.addAll(Arrays.asList(Arrays.copyOfRange(A.vals(), pos - 1, A.vals().length)));
+			} else {
+				list.addAll(Arrays.asList(Arrays.copyOfRange(A.vals(), pos, A.vals().length)));
+			}
+		}
+		
+		return current;
+			
+	}
+	
 	public List<DeepCopyObject> rangeSearch(DeepCopyObject lowerBound, boolean isInclusiveLower, DeepCopyObject upperBound, boolean isInclusiveUpper) {
 		List<DeepCopyObject> list = new ArrayList<DeepCopyObject>();
 		
@@ -3586,7 +3627,13 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 				}
 				
 			} else { // case 2.2: upperBound is null
+				BNode current = this.getLowerNodeSublist(lowerBound, isInclusiveLower, list).getNodeContent().next();
+				while(current != null) {
+					list.addAll(Arrays.asList(current.getNodeContent().vals()));
+					current = current.getNodeContent().next();
+				}
 				
+				return list;
 			}
 		}
 		
@@ -3603,11 +3650,67 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			return list;
 		}
 		
-		
-		
 		// case 4: lowerBound != null && upperBound != null && lowerBound < upperBound
 		
-		return null;
+		BNode current = this.getLowerNodeSublist(lowerBound, isInclusiveLower, list);
+		if((current.getNodeContent().next() != null) && (comparator.compare(upperBound, current.getNodeContent().highKey()) > 0)) {
+			current = current.getNodeContent().next();
+			IMBLTNodeContentWrapper wrapper;
+			while(current != null) {
+				wrapper = current.getNodeContent();
+				if(wrapper.highKey() == null) {
+					this.getUpperNodeSubList(upperBound, isInclusiveUpper, wrapper.keys(), wrapper.vals(), list);
+					return list;
+				}
+				if(comparator.compare(upperBound, wrapper.highKey()) > 0) {
+					list.addAll(Arrays.asList(wrapper.vals()));
+				} else {
+					this.getUpperNodeSubList(upperBound, isInclusiveUpper, wrapper.keys(), wrapper.vals(), list);
+					return list;
+				}
+				current = wrapper.next();
+				
+			}
+		} else { // the same node contains upperBound and lowerBound
+			list.clear();
+			IMBLTNodeContentWrapper wrapper = current.getNodeContent();
+			int i , j;
+			for(i = 1; i < wrapper.keys().length; i++) {
+				if(comparator.compare(wrapper.keys()[i], lowerBound) < 0) {
+					// did nothing
+				} else {
+					if(comparator.compare(wrapper.keys()[i], lowerBound) == 0) {
+						if(isInclusiveLower) {
+							list.add(wrapper.vals()[i-1]);
+						}
+						i = i + 1;
+					} 
+					break;
+				}
+				
+			}
+			
+			for(j = i ; j < wrapper.keys().length; j++) {
+				if(j == (wrapper.keys().length - 1)) {
+					return list;
+				}
+				System.out.println(j);
+				if(comparator.compare(upperBound, wrapper.keys()[j]) > 0){
+					list.add(wrapper.vals()[j-1]);
+				}
+				if(comparator.compare(upperBound, wrapper.keys()[j]) == 0){
+					if(isInclusiveUpper) {
+						list.add(wrapper.vals()[j-1]);
+					}
+					return list;
+				}
+				if(comparator.compare(upperBound, wrapper.keys()[j]) < 0){
+					return list;
+				}
+			}
+			
+		}
+		return list;
 		
 	}
 
@@ -3859,8 +3962,12 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		// rangeSearch test
 		System.out.println("rangeSearch...");
 		System.out.println(Arrays.toString(treeMap.rangeSearch(new IntegerNode(8), true, new IntegerNode(8), true).toArray()));
-		System.out.println(Arrays.toString(treeMap.rangeSearch(null, true, new IntegerNode(9), true).toArray()));
+		System.out.println(Arrays.toString(treeMap.rangeSearch(null, true, new IntegerNode(18), false).toArray()));
+		System.out.println(Arrays.toString(treeMap.rangeSearch(new IntegerNode(19), true, null, false).toArray()));
+		System.out.println(Arrays.toString(treeMap.rangeSearch(new IntegerNode(2), true, new IntegerNode(17), false).toArray()));
+		System.out.println(Arrays.toString(treeMap.rangeSearch(new IntegerNode(17), false, new IntegerNode(18), false).toArray()));
 
+		
 		
 		
 		

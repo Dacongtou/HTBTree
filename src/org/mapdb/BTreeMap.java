@@ -3517,7 +3517,6 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			leaf = (IMBLTLeafNodeContentWrapper) leaf.next().getNodeContent();
 			pos = findChildren(v, leaf.keys);
 		}
-
 		if (pos == leaf.keys.length - 1) {
 			return null; // last key is always deleted
 		}
@@ -3530,6 +3529,86 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			return ((DeepCopyObject) ret);
 		} else
 			return null;
+	}
+	
+	public void getUpperNodeSubList(DeepCopyObject upperBound, boolean isInclusiveUpper, DeepCopyObject [] keys, DeepCopyObject [] vals, List<DeepCopyObject> list) {
+		int position = this.findChildren(upperBound, keys);
+		// upperBound exceeds maximum value of the high key
+		if (position == keys.length - 1) {
+			list.addAll(Arrays.asList(vals));
+			return;
+		}
+		if(comparator.compare(upperBound, keys[position]) >= 0){
+			//list.addAll(Arrays.asList(Arrays.))
+			DeepCopyObject [] subList = Arrays.copyOf(vals, position);
+			if(!isInclusiveUpper) {
+				if(comparator.compare(keys[position], upperBound) == 0) {
+					list.addAll(Arrays.asList(Arrays.copyOf(subList, position-1)));
+				}
+			} else {
+				list.addAll(Arrays.asList(subList));
+			}
+		}
+		
+	}
+	
+	public List<DeepCopyObject> rangeSearch(DeepCopyObject lowerBound, boolean isInclusiveLower, DeepCopyObject upperBound, boolean isInclusiveUpper) {
+		List<DeepCopyObject> list = new ArrayList<DeepCopyObject>();
+		
+		// case 1: invalid case
+		if(((lowerBound == null) && (upperBound == null))) {
+			return list;
+		}
+		
+		// case 2: lowerBound == null || upperBound == null
+		if(lowerBound == null || upperBound == null) {
+			// case 2.1: lowerBound is null
+			if (lowerBound == null) {
+				BNode current = leftEdges1.get(0);
+				if(!current.isLeaf()) {
+					return list;
+				}
+				IMBLTNodeContentWrapper wrapper;
+				while(current != null) {
+					wrapper = current.getNodeContent();
+					if(wrapper.highKey() == null) {
+						this.getUpperNodeSubList(upperBound, isInclusiveUpper, wrapper.keys(), wrapper.vals(), list);
+						return list;
+					}
+					if(comparator.compare(upperBound, wrapper.highKey()) > 0) {
+						list.addAll(Arrays.asList(wrapper.vals()));
+					} else {
+						this.getUpperNodeSubList(upperBound, isInclusiveUpper, wrapper.keys(), wrapper.vals(), list);
+						return list;
+					}
+					current = wrapper.next();
+					
+				}
+				
+			} else { // case 2.2: upperBound is null
+				
+			}
+		}
+		
+		// case 3: incoming parameter is not valid
+		if (comparator.compare(lowerBound, upperBound) > 0) {
+			return list;
+		}
+		
+		// case 4: lowerBound == upperBound
+		if(comparator.compare(lowerBound, upperBound) == 0) {
+			if(isInclusiveLower || isInclusiveUpper) {
+				list.add(this.get2(lowerBound));
+			}
+			return list;
+		}
+		
+		
+		
+		// case 4: lowerBound != null && upperBound != null && lowerBound < upperBound
+		
+		return null;
+		
 	}
 
 	public DeepCopyObject remove3(DeepCopyObject key) {
@@ -3627,6 +3706,56 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			throw new RuntimeException(e);
 		}
 	}
+	
+	public void printWholeTree() {
+		int counter = 1;
+		BNode current;
+		System.out.println("Total level: " + leftEdges1.size());
+		for(int i = leftEdges1.size() - 1; i > 0 ; i--){
+			System.out.println("Level: " + counter);
+			counter++;
+			current = leftEdges1.get(i);
+			printInnerLevel(current);
+		}
+		System.out.println("Level: " + counter);
+		current = leftEdges1.get(0);
+		printLeafLevel(current);
+	}
+	
+	public void printInnerLevel(BNode node) {
+		BNode levelNode = node;
+		IMBLTNodeContentWrapper contentWrapper;
+		int counter = 1;
+		while(levelNode != null) {
+			contentWrapper = levelNode.getNodeContent();
+			System.out.println("node" + counter++ + ": keys: " + Arrays.toString(contentWrapper.keys()) + " child: " + Arrays.toString(contentWrapper.child()));
+			levelNode = contentWrapper.next();
+		}
+	}
+	
+	public void printLeafLevel(BNode node) {
+		BNode levelNode = node;
+		IMBLTNodeContentWrapper contentWrapper;
+		int counter = 1;
+		while(levelNode != null) {
+			contentWrapper = levelNode.getNodeContent();
+			System.out.println("node" + counter++ + ": keys: " + Arrays.toString(contentWrapper.keys()) + " vals: " + Arrays.toString(contentWrapper.vals()));
+			levelNode = contentWrapper.next();
+		}
+	}
+	
+	public void printLeafNodeContent() {
+		
+		BNode current = leftEdges1.get(0);
+		IMBLTNodeContentWrapper contentWrapper = current.getNodeContent();
+		if(!contentWrapper.isLeaf()) {
+			System.out.println("Something wrong.... not leaf");
+		} else {
+			printLeafLevel(current);
+		}
+		
+		
+	}
 
 	public static void main(String[] args) {
 
@@ -3639,22 +3768,22 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 				BTreeMap.COMPARABLE_COMPARATOR, 0), 6, false, 0,
 				BTreeKeySerializer.BASIC, Serializer.BASIC,
 				BTreeMap.COMPARABLE_COMPARATOR, 0, false);
-		// treeMap.put(1, "justForTest1");
-		// treeMap.put(2, "justForTest2");
-		// treeMap.put(3, "justForTest3");
-		// treeMap.put(4, "justForTest4");
-		// treeMap.put(5, "justForTest5");
-		// treeMap.put(6, "justForTest6");
-		// treeMap.put(7, "justForTest7");
-		// treeMap.put(8, "justForTest8");
-		// System.out.println("1: " + (String) treeMap.get(1));
-		// System.out.println("2: " + (String) treeMap.get(2));
-		// System.out.println("3: " + (String) treeMap.get(3));
-		// System.out.println("4: " + (String) treeMap.get(4));
-		// System.out.println("5: " + (String) treeMap.get(5));
-		// System.out.println("6: " + (String) treeMap.get(6));
-		// System.out.println("7: " + (String) treeMap.get(7));
-		// System.out.println("8: " + (String) treeMap.get(8));
+		 treeMap.put(1, "justForTest1");
+		 treeMap.put(2, "justForTest2");
+		 treeMap.put(3, "justForTest3");
+		 treeMap.put(4, "justForTest4");
+		 treeMap.put(5, "justForTest5");
+		 treeMap.put(6, "justForTest6");
+		 treeMap.put(7, "justForTest7");
+		 treeMap.put(8, "justForTest8");
+		 System.out.println("1: " + (String) treeMap.get(1));
+		 System.out.println("2: " + (String) treeMap.get(2));
+		 System.out.println("3: " + (String) treeMap.get(3));
+		 System.out.println("4: " + (String) treeMap.get(4));
+		 System.out.println("5: " + (String) treeMap.get(5));
+		 System.out.println("6: " + (String) treeMap.get(6));
+		 System.out.println("7: " + (String) treeMap.get(7));
+		 System.out.println("8: " + (String) treeMap.get(8));
 
 		IntegerNode keyNode1 = new IntegerNode(1);
 		IntegerNode keyNode2 = new IntegerNode(2);
@@ -3664,6 +3793,14 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		IntegerNode keyNode6 = new IntegerNode(6);
 		IntegerNode keyNode7 = new IntegerNode(7);
 		IntegerNode keyNode8 = new IntegerNode(8);
+		IntegerNode keyNode11 = new IntegerNode(11);
+		IntegerNode keyNode12 = new IntegerNode(12);
+		IntegerNode keyNode13 = new IntegerNode(13);
+		IntegerNode keyNode14 = new IntegerNode(14);
+		IntegerNode keyNode15 = new IntegerNode(15);
+		IntegerNode keyNode16 = new IntegerNode(16);
+		IntegerNode keyNode17 = new IntegerNode(17);
+		IntegerNode keyNode18 = new IntegerNode(18);
 
 		StringNode valueNode1 = new StringNode("1");
 		StringNode valueNode2 = new StringNode("2");
@@ -3673,6 +3810,14 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		StringNode valueNode6 = new StringNode("6");
 		StringNode valueNode7 = new StringNode("7");
 		StringNode valueNode8 = new StringNode("8");
+		StringNode valueNode11 = new StringNode("11");
+		StringNode valueNode12 = new StringNode("12");
+		StringNode valueNode13 = new StringNode("13");
+		StringNode valueNode14 = new StringNode("14");
+		StringNode valueNode15 = new StringNode("15");
+		StringNode valueNode16 = new StringNode("16");
+		StringNode valueNode17 = new StringNode("17");
+		StringNode valueNode18 = new StringNode("18");
 
 		// put3, remove4, get2
 		treeMap.put3(keyNode1, valueNode1);
@@ -3683,6 +3828,14 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		treeMap.put3(keyNode6, valueNode6);
 		treeMap.put3(keyNode7, valueNode7);
 		treeMap.put3(keyNode8, valueNode8);
+		treeMap.put3(keyNode11, valueNode11);
+		treeMap.put3(keyNode12, valueNode12);
+		treeMap.put3(keyNode13, valueNode13);
+		treeMap.put3(keyNode14, valueNode14);
+		treeMap.put3(keyNode15, valueNode15);
+		treeMap.put3(keyNode16, valueNode16);
+		treeMap.put3(keyNode17, valueNode17);
+		treeMap.put3(keyNode18, valueNode18);
 
 		System.out.println(treeMap.get2(new IntegerNode(1)));
 		System.out.println(treeMap.get2(new IntegerNode(2)));
@@ -3691,11 +3844,23 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		System.out.println(treeMap.get2(new IntegerNode(5)));
 		System.out.println(treeMap.get2(new IntegerNode(6)));
 		System.out.println(treeMap.get2(new IntegerNode(7)));
-		System.out.println(treeMap.get2(new IntegerNode(8)));
+		System.out.println(treeMap.get2(new IntegerNode(9)));
 		
-		System.out.println("removig......");
-		System.out.println(treeMap.remove4(new IntegerNode(1), new StringNode("1")));
-		System.out.println(treeMap.get2(new IntegerNode(1)));
+		//System.out.println("removig......");
+		//System.out.println(treeMap.remove4(new IntegerNode(1), new StringNode("1")));
+		//System.out.println(treeMap.get2(new IntegerNode(1)));
+//		treeMap.remove4(new IntegerNode(1), new StringNode("1"));
+//		treeMap.remove4(new IntegerNode(2), new StringNode("2"));
+//		treeMap.remove4(new IntegerNode(3), new StringNode("3"));
+//		treeMap.remove4(new IntegerNode(4), new StringNode("4"));
+		//treeMap.printLeafNodeContent();
+		treeMap.printWholeTree();
+		
+		// rangeSearch test
+		System.out.println("rangeSearch...");
+		System.out.println(Arrays.toString(treeMap.rangeSearch(new IntegerNode(8), true, new IntegerNode(8), true).toArray()));
+		System.out.println(Arrays.toString(treeMap.rangeSearch(null, true, new IntegerNode(9), true).toArray()));
+
 		
 		
 		

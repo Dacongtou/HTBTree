@@ -39,11 +39,20 @@ public class IMBLTLeafNodeContentWrapper implements IMBLTNodeContentWrapper{
 	public IMBLTNodeContentWrapper getNodeContentDeepCopy() {
 		DeepCopyObject[] deepCopyKeys = new DeepCopyObject[keys.length];
 		for(int i = 0; i < keys.length; i++){
-			deepCopyKeys[i] = keys[i].deepCopy();
+			if(keys[i] != null) {
+				deepCopyKeys[i] = keys[i].deepCopy();
+			} else {
+				deepCopyKeys[i] = null;
+			}
+			
 		}
 		DeepCopyObject[] deepCopyValues = new DeepCopyObject[vals.length];
-		for(int i = 0; i < keys.length; i++){
-			deepCopyValues[i] = vals[i].deepCopy();
+		for(int i = 0; i < vals.length; i++){
+			if(vals[i] != null) {
+				deepCopyValues[i] = vals[i].deepCopy();
+			} else {
+				deepCopyValues[i] = null;
+			}		
 		}
 		
 		BNode nextCopy = next;

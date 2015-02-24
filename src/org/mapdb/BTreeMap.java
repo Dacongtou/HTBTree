@@ -727,6 +727,9 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 				new Object[] {}, 0);
 		// added
 		BTreeMap.rootNode = emptyRoot;
+		IMBLTLeafNodeContentWrapper rootWrapper = new IMBLTLeafNodeContentWrapper(new DeepCopyObject [] {null, null}, new DeepCopyObject[] {}, null);
+		BTreeMap.rootNode.setNodeContentWrapper(rootWrapper);
+		
 		// empty root is serializer simpler way, so we can use dummy values
 		long rootRecidVal = engine.put(emptyRoot, new NodeSerializer(false,
 				keySer, valueSer, comparator, numberOfNodeMetas));
@@ -3131,8 +3134,10 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 			final Object value) {
 		final Object[] ret = Arrays.copyOf(array, array.length + 1);
 		if (pos < array.length) {
+			// copy the rest of the array
 			System.arraycopy(array, pos, ret, pos + 1, array.length - pos);
 		}
+		// modify the value in the pos
 		ret[pos] = value;
 		return ret;
 	}
@@ -3232,7 +3237,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		int level = 1;
 
 		// long p=0;
-		BNode p;
+		BNode p = null;
 		try {
 			while (true) {
 				boolean found;
@@ -3317,6 +3322,8 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 					Object[] keys = arrayPut(A.keys(), pos, v);
 
 					if (A.isLeaf()) {
+						// the first item in the leaf node is null
+						// so we need to make the position as pos - 1
 						Object[] vals = arrayPut(A.vals(), pos - 1, value);
 						// LeafNode n = new LeafNode(keys, vals,
 						// ((LeafNode)A).next);
@@ -3348,10 +3355,12 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 					// case 2.2: node is not safe, it requires splitting
 					final int pos = findChildren(v, A.keys());
 					final Object[] keys = arrayPut(A.keys(), pos, v);
+					// vals is for leaf node
 					final Object[] vals = (A.isLeaf()) ? arrayPut(A.vals(),
 							pos - 1, value) : null;
 					// final long[] child = A.isLeaf()? null :
 					// arrayLongPut(A.child(), pos, p);
+					// child is for inner node
 					final Object[] child = A.isLeaf() ? null : arrayPut(
 							A.child(), pos, p);
 					final int splitPos = keys.length / 2;
@@ -3361,6 +3370,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 						Object[] vals2 = Arrays.copyOfRange(vals, splitPos,
 								vals.length);
 						// create newly splitted leaf node
+						// the first key of the leaf node should be null ???
 						IMBLTLeafNodeContentWrapper wrapper1 = new IMBLTLeafNodeContentWrapper(
 								((DeepCopyObject[]) Arrays.copyOfRange(keys,
 										splitPos, keys.length)),
@@ -3387,9 +3397,11 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 						B.setNodeContentWrapper(wrapper1);
 					}
 					// long q = engine.put(B, nodeSerializer);
+					// B is the newly created node
 					BNode q = B;
 					if (A.isLeaf()) { // splitPos+1 is there so A gets new high
 										// value (key)
+						// ???
 						Object[] keys2 = Arrays.copyOf(keys, splitPos + 2);
 						keys2[keys2.length - 1] = keys2[keys2.length - 2];
 						Object[] vals2 = Arrays.copyOf(vals, splitPos);
@@ -3416,6 +3428,8 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 
 //					if ((current != rootRecid)) { // is not root
 //						unlock(nodeLocks, current);
+					
+					// insert the high key and pointer to the parent
 					if ((current != rootNode)) { // is not root
 						//unlock(nodeLocks, current);
 						current.releaseLock();
@@ -3431,25 +3445,33 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 						}
 						//assert (current > 0);
 					} else {
-						BNode R = new DirNode(new Object[] { A.keys()[0],
-								A.highKey(), B.isLeaf() ? null : B.highKey() },
-								new long[] { current, q, 0 });
-
-						lock(nodeLocks, rootRecidRef);
-						unlock(nodeLocks, current);
-						long newRootRecid = engine.put(R, nodeSerializer);
-
-						assert (nodeLocks.get(rootRecidRef) == Thread
-								.currentThread());
-						engine.update(rootRecidRef, newRootRecid,
-								Serializer.LONG);
-						// add newRootRecid into leftEdges
-						leftEdges.add(newRootRecid);
+//						BNode R = new DirNode(new Object[] { A.keys()[0],
+//								A.highKey(), B.isLeaf() ? null : B.highKey() },
+//								new long[] { current, q, 0 });
+						
+						IMBLTInnerNodeContentWrapper rootWrapper = new IMBLTInnerNodeContentWrapper(new DeepCopyObject[] {A.keys()[0], A.highKey(), B.isLeaf() ? null : B.getNodeContent().highKey()}, new BNode[] {current, q, null});
+						BNode R = new DirNode();
+						R.setNodeContentWrapper(rootWrapper);
+						rootNode = R;
+						leftEdges1.add(R);
+						current.releaseLock();
+						
+//						lock(nodeLocks, rootRecidRef);
+//						unlock(nodeLocks, current);
+//						long newRootRecid = engine.put(R, nodeSerializer);
+//
+//						assert (nodeLocks.get(rootRecidRef) == Thread
+//								.currentThread());
+//						engine.update(rootRecidRef, newRootRecid,
+//								Serializer.LONG);
+//						// add newRootRecid into leftEdges
+//						leftEdges.add(newRootRecid);
+						
 
 						// notify(key, null, value2);
-						unlock(nodeLocks, rootRecidRef);
-						if (CC.PARANOID)
-							assertNoLocks(nodeLocks);
+						//unlock(nodeLocks, rootRecidRef);
+//						if (CC.PARANOID)
+//							assertNoLocks(nodeLocks);
 						return null;
 					}
 				}
@@ -3464,7 +3486,7 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 	}
 
 	public DeepCopyObject get2(DeepCopyObject key) {
-		return (DeepCopyObject) get(key, true);
+		return (DeepCopyObject) get2(key, true);
 	}
 
 	protected DeepCopyObject get2(DeepCopyObject key, boolean expandValue) {
@@ -3668,6 +3690,10 @@ public class BTreeMap<K, V> extends AbstractMap<K, V> implements
 		System.out.println(treeMap.get2(new IntegerNode(6)));
 		System.out.println(treeMap.get2(new IntegerNode(7)));
 		System.out.println(treeMap.get2(new IntegerNode(8)));
+		
+		// put3, remove3, get2
+		
+		
 
 	}
 

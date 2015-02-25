@@ -1,7 +1,6 @@
-package ca.mcgill.disk.databaseIndex.HTBLinkTree.test;
+package ca.mcgill.disk.databaseIndex.IMBLTree.test;
 
-import org.mapdb.DeepCopyObject;
-
+import ca.mcgill.disk.databaseIndex.IMBLTree.DeepCopyObject;
 
 
 
@@ -12,9 +11,11 @@ public class StringNode extends DeepCopyObject {
 	 */
 	private static final long serialVersionUID = 3759066436280452554L;
 	String val;
+	String trick;
 	
 	public StringNode (String val) {
 		this.val = val;
+		trick = "";
 	}
 	
 	@Override
@@ -22,8 +23,12 @@ public class StringNode extends DeepCopyObject {
 		return new StringNode(val);
 	}
 	
+	public void doTrick() {
+		trick = " I am trick";
+	}
+	
 	public String toString() {
-		return ("my value is " + this.val);
+		return ("my value is " + this.val + this.trick);
 	}
 	
 	@Override
